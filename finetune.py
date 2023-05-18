@@ -24,6 +24,8 @@ from peft import (
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from utils.prompter import Prompter
 
+os.environ["WANDB_MODE"] = "offline"
+
 
 def train(
     # model/data params
@@ -56,6 +58,8 @@ def train(
     wandb_log_model: str = "",  # options: false | true
     resume_from_checkpoint: str = None,  # either training checkpoint or final adapter
     prompt_template_name: str = "alpaca",  # The prompt template to use, will default to alpaca.
+    # add
+    int8_training: bool = True,
 ):
     if int(os.environ.get("LOCAL_RANK", 0)) == 0:
         print(
@@ -82,6 +86,7 @@ def train(
             f"wandb_log_model: {wandb_log_model}\n"
             f"resume_from_checkpoint: {resume_from_checkpoint or False}\n"
             f"prompt template: {prompt_template_name}\n"
+            f"int8 trainig: {int8_training}\n"
         )
     assert (
         base_model
@@ -112,7 +117,7 @@ def train(
     with init_empty_weights():
         model = AutoModelForCausalLM.from_pretrained(
             base_model,
-            load_in_8bit=True,
+            load_in_8bit=int8_training,
             torch_dtype=torch.float16,
             device_map=device_map,
         )
@@ -169,7 +174,8 @@ def train(
             ]  # could be sped up, probably
         return tokenized_full_prompt
 
-    model = prepare_model_for_int8_training(model)
+    if int8_training:
+        model = prepare_model_for_int8_training(model)
 
     config = LoraConfig(
         r=lora_r,
